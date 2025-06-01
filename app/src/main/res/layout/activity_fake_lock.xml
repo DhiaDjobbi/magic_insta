@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- Small preview container in top-left corner (change as needed) -->
+    <FrameLayout
+        android:id="@+id/camera_preview_container"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:layout_margin="16dp"
+        android:layout_gravity="top|start"
+        android:background="#222222"/>
+
+</FrameLayout>

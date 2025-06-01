@@ -3,6 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.front" android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="true" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -13,6 +17,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Magic_insta"
         tools:targetApi="31">
+
+
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -39,10 +46,6 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service" />
         </service>
-
-
-
-
 
     </application>
 
