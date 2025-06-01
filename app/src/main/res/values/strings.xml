@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">magic_insta</string>
+    <string name="accessibility_service_description">Fake Lock key detector</string>
+</resources>
