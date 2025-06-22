@@ -9,7 +9,7 @@ import android.widget.FrameLayout;
 
 public class FakeLockActivity extends Activity {
 
-    private CameraPreview cameraPreview;
+    private MotionCameraPreview cameraPreview;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,9 +39,9 @@ public class FakeLockActivity extends Activity {
         params.setMargins(dpToPx(16), dpToPx(16), 0, 0); // top-left
         previewContainer.setLayoutParams(params);
         previewContainer.setBackgroundColor(0xFF222222);
-        rootLayout.addView(previewContainer);  // FIRST -> BEHIND
+        rootLayout.addView(previewContainer); // added first = bottom
 
-        // Add black full-screen view (top layer)
+        // Add black full-screen overlay (top layer)
         View blackView = new View(this);
         blackView.setBackgroundColor(0xFF000000);
         blackView.setSystemUiVisibility(
@@ -49,8 +49,9 @@ public class FakeLockActivity extends Activity {
                         View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
                         View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         );
-        rootLayout.addView(blackView);  // LAST -> ON TOP
+        rootLayout.addView(blackView); // added last = top
 
+        // Set content view
         setContentView(rootLayout);
 
         // Hide ActionBar if exists
@@ -58,8 +59,8 @@ public class FakeLockActivity extends Activity {
             getActionBar().hide();
         }
 
-        // Attach camera preview
-        cameraPreview = new CameraPreview(this);
+        // Start camera with motion detection
+        cameraPreview = new MotionCameraPreview(this);
         previewContainer.addView(cameraPreview);
     }
 
@@ -78,13 +79,14 @@ public class FakeLockActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        // Disabled
+        // Disable back button
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (intent != null && intent.getBooleanExtra("exit", false)) {
+            // Restore brightness before exit
             WindowManager.LayoutParams layout = getWindow().getAttributes();
             layout.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
             getWindow().setAttributes(layout);
