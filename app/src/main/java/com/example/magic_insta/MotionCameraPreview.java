@@ -3,14 +3,11 @@ package com.example.magic_insta;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.ImageFormat;
 import android.hardware.Camera;
 import android.os.Handler;
-import android.util.Base64;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 
 public class MotionCameraPreview extends SurfaceView implements SurfaceHolder.Callback, Camera.PreviewCallback {
@@ -19,6 +16,7 @@ public class MotionCameraPreview extends SurfaceView implements SurfaceHolder.Ca
     private SurfaceHolder holder;
     private byte[] lastFrame;
     private boolean isWaitingToCapture = false;
+    private boolean isDetecting = false;
     private Context context;
     private final Handler handler = new Handler();
 
@@ -55,7 +53,7 @@ public class MotionCameraPreview extends SurfaceView implements SurfaceHolder.Ca
 
     @Override
     public void onPreviewFrame(byte[] data, Camera camera) {
-        if (data == null || isWaitingToCapture) return;
+        if (data == null || isWaitingToCapture || isDetecting) return;
 
         Camera.Size size = camera.getParameters().getPreviewSize();
         if (lastFrame == null) {
@@ -67,10 +65,8 @@ public class MotionCameraPreview extends SurfaceView implements SurfaceHolder.Ca
         if (diff > 100000) { // Adjust threshold as needed
             isWaitingToCapture = true;
             Log.d(TAG, "Motion detected! Waiting for stabilization...");
-
             handler.postDelayed(() -> captureImage(), 400);
         }
-
         lastFrame = Arrays.copyOf(data, data.length);
     }
 
@@ -86,22 +82,65 @@ public class MotionCameraPreview extends SurfaceView implements SurfaceHolder.Ca
         Log.d(TAG, "Capturing image...");
         camera.takePicture(null, null, (data, camera) -> {
             Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
-            uploadImage(bitmap);
+            detectCard(bitmap);
             camera.startPreview();
             isWaitingToCapture = false;
         });
     }
 
-    private void uploadImage(Bitmap bitmap) {
-        Log.d(TAG, "Uploading image to OCR API...");
+    private void detectCard(Bitmap bitmap) {
+        Log.d(TAG, "Starting card detection...");
+        isDetecting = true;
+        
         new Thread(() -> {
             try {
-                String response = OcrUploader.upload(bitmap);
-                Log.d(TAG, "OCR Result: " + response);
+                detectCardUntilFound(bitmap);
             } catch (Exception e) {
-                Log.e(TAG, "OCR upload failed", e);
+                Log.e(TAG, "Card detection failed", e);
+                isDetecting = false;
             }
         }).start();
+    }
+    
+    private void detectCardUntilFound(Bitmap bitmap) throws Exception {
+        int attempts = 0;
+        int maxAttempts = 10; // Prevent infinite loop
+        
+        while (attempts < maxAttempts) {
+            attempts++;
+            Log.d(TAG, "Detection attempt " + attempts);
+            
+            try {
+                CardDetectionUploader.DetectionResult result = CardDetectionUploader.detectCard(bitmap);
+                
+                if (result.hasCard) {
+                    Log.d(TAG, "SUCCESS! Card detected:");
+                    Log.d(TAG, "SUCCESS! Card detected:");
+                    Log.d(TAG, "SUCCESS! Card detected:");
+                    Log.d(TAG, "Class: " + result.cardClass);
+                    Log.d(TAG, "Confidence: " + result.confidence);
+                    Log.d(TAG, "SUCCESS! Card detected:");
+                    Log.d(TAG, "SUCCESS! Card detected:");
+                    
+                    // You can add additional logic here when a card is found
+                    // For example, show a toast, update UI, etc.
+                    
+                    isDetecting = false;
+                    return; // Stop detection, card found!
+                } else {
+                    Log.d(TAG, "No card detected, continuing...");
+                    // Small delay before next attempt
+                    Thread.sleep(500);
+                }
+                
+            } catch (Exception e) {
+                Log.e(TAG, "API call failed on attempt " + attempts, e);
+                Thread.sleep(1000); // Wait longer on API error
+            }
+        }
+        
+        Log.d(TAG, "Stopped detection after " + maxAttempts + " attempts");
+        isDetecting = false;
     }
 
     public void releaseCamera() {
@@ -113,6 +152,11 @@ public class MotionCameraPreview extends SurfaceView implements SurfaceHolder.Ca
         }
     }
 
-    @Override public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {}
-    @Override public void surfaceDestroyed(SurfaceHolder holder) { releaseCamera(); }
+    @Override 
+    public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {}
+    
+    @Override 
+    public void surfaceDestroyed(SurfaceHolder holder) { 
+        releaseCamera(); 
+    }
 }
