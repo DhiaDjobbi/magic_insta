@@ -3,7 +3,10 @@ package com.example.magic_insta;
 import android.accessibilityservice.AccessibilityService;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.Rect;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -30,19 +33,25 @@ public class AccessibilityKeyDetector extends AccessibilityService {
     private static final String TAG = "AccessKeyDetector";
     private final Random random = new Random();
 
-    private int indexToClick = 1;    /**
+    private int indexToClick = 1;
+
+    /**
      * Generates a random delay between 3000-6000 milliseconds (3-6 seconds)
      * to make automation more human-like and avoid detection
      */
     private long getRandomDelay() {
         return 3000 + random.nextInt(3001); // 3000-6000 milliseconds
-    }    /**
+    }
+
+    /**
      * Generates a shorter random delay between 1000-2000 milliseconds (1-2 seconds)
      * for retry operations
      */
     private long getRandomShortDelay() {
         return 1000 + random.nextInt(1001); // 1000-2000 milliseconds
-    }    /**
+    }
+
+    /**
      * Generates a very short random delay between 300-800 milliseconds
      * for quick sequential operations
      */
@@ -96,7 +105,9 @@ public class AccessibilityKeyDetector extends AccessibilityService {
             }
         }
         return false;
-    }    private void handleVolumeUp() {
+    }
+
+    private void handleVolumeUp() {
         vibrate();
         Log.d(TAG, "Volume Up pressed - vibration triggered");
         
@@ -107,7 +118,9 @@ public class AccessibilityKeyDetector extends AccessibilityService {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         intent.putExtra("exit", true);
         startActivity(intent);
-    }    private void handleVolumeDown() {
+    }
+
+    private void handleVolumeDown() {
         vibrate();
         Log.d(TAG, "Volume Down pressed - vibration triggered");
         
@@ -117,7 +130,9 @@ public class AccessibilityKeyDetector extends AccessibilityService {
         Intent intent = new Intent(this, FakeLockActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         startActivity(intent);
-    }    private void handleInstagramManager() {
+    }
+
+    private void handleInstagramManager() {
         vibrate();
         Log.d(TAG, "Instagram Manager - Volume Down pressed");
 
@@ -125,18 +140,16 @@ public class AccessibilityKeyDetector extends AccessibilityService {
         showTouchBlockingOverlay();
 
         try {
-            Intent launchIntent = getPackageManager().getLaunchIntentForPackage("com.instagram.android");
-            if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                startActivity(launchIntent);
-                Log.d(TAG, "Instagram app launched");
+            boolean launched = launchInstagram();
+            if (launched) {
+                Log.d(TAG, "Instagram app launched successfully");
                 
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     tryNavigateToInstagramProfile(0);
                 }, getRandomDelay()); // Random delay between 3-6 seconds for Instagram to load
             } else {
-                Log.e(TAG, "Instagram app not found");
-                // Hide overlay if Instagram is not found
+                Log.e(TAG, "Failed to launch Instagram app");
+                // Hide overlay if Instagram launch failed
                 hideTouchBlockingOverlay();
             }
         } catch (Exception e) {
@@ -146,9 +159,111 @@ public class AccessibilityKeyDetector extends AccessibilityService {
         }
     }
 
+    /**
+     * Multiple methods to launch Instagram with fallbacks
+     */
+    private boolean launchInstagram() {
+        // Method 1: Try standard package manager launch intent
+        try {
+            Intent launchIntent = getPackageManager().getLaunchIntentForPackage("com.instagram.android");
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                startActivity(launchIntent);
+                Log.d(TAG, "Instagram launched via package manager");
+                return true;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Method 1 failed: " + e.getMessage());
+        }
+
+        // Method 2: Try launching via Intent with Instagram's main activity
+        try {
+            Intent intent = new Intent();
+            intent.setClassName("com.instagram.android", "com.instagram.android.activity.MainTabActivity");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(intent);
+            Log.d(TAG, "Instagram launched via explicit activity");
+            return true;
+        } catch (Exception e) {
+            Log.w(TAG, "Method 2 failed: " + e.getMessage());
+        }
+
+        // Method 3: Try launching via another known Instagram activity
+        try {
+            Intent intent = new Intent();
+            intent.setClassName("com.instagram.android", "com.instagram.android.activity.UrlHandlerActivity");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(intent);
+            Log.d(TAG, "Instagram launched via URL handler activity");
+            return true;
+        } catch (Exception e) {
+            Log.w(TAG, "Method 3 failed: " + e.getMessage());
+        }
+
+        // Method 4: Try using ACTION_VIEW with Instagram URL
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setData(Uri.parse("https://www.instagram.com/"));
+            intent.setPackage("com.instagram.android");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(intent);
+            Log.d(TAG, "Instagram launched via ACTION_VIEW");
+            return true;
+        } catch (Exception e) {
+            Log.w(TAG, "Method 4 failed: " + e.getMessage());
+        }
+
+        // Method 5: Try launching with custom Instagram URL scheme
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setData(Uri.parse("instagram://camera"));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(intent);
+            Log.d(TAG, "Instagram launched via custom URL scheme");
+            return true;
+        } catch (Exception e) {
+            Log.w(TAG, "Method 5 failed: " + e.getMessage());
+        }
+
+        // Method 6: Try resolving activities that can handle Instagram intent
+        try {
+            Intent intent = new Intent(Intent.ACTION_MAIN);
+            intent.addCategory(Intent.CATEGORY_LAUNCHER);
+            PackageManager pm = getPackageManager();
+            List<ResolveInfo> activities = pm.queryIntentActivities(intent, 0);
+            
+            for (ResolveInfo activity : activities) {
+                if (activity.activityInfo.packageName.equals("com.instagram.android")) {
+                    Intent launchIntent = new Intent(Intent.ACTION_MAIN);
+                    launchIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+                    launchIntent.setClassName(activity.activityInfo.packageName, activity.activityInfo.name);
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    startActivity(launchIntent);
+                    Log.d(TAG, "Instagram launched via resolved activity: " + activity.activityInfo.name);
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Method 6 failed: " + e.getMessage());
+        }
+
+        // Method 7: Check if Instagram is actually installed
+        try {
+            PackageManager pm = getPackageManager();
+            pm.getPackageInfo("com.instagram.android", PackageManager.GET_ACTIVITIES);
+            Log.e(TAG, "Instagram is installed but all launch methods failed");
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.e(TAG, "Instagram is not installed on this device");
+        }
+
+        return false;
+    }
+
     private void tryNavigateToInstagramProfile(int attempt) {
         Log.d(TAG, "Attempting to navigate to Instagram profile (Attempt " + (attempt + 1) + ")");
-        AccessibilityNodeInfo rootNode = getRootInActiveWindow();        if (rootNode == null) {
+        AccessibilityNodeInfo rootNode = getRootInActiveWindow();
+
+        if (rootNode == null) {
             Log.e(TAG, "Root node is null");
             if (attempt < 3) {
                 new Handler(Looper.getMainLooper()).postDelayed(() -> tryNavigateToInstagramProfile(attempt + 1), getRandomDelay());
@@ -163,7 +278,9 @@ public class AccessibilityKeyDetector extends AccessibilityService {
         AccessibilityNodeInfo profileButton = findLastClickableFrameLayout(rootNode);
         if (profileButton != null && profileButton.isClickable()) {
             profileButton.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-            Log.d(TAG, "Clicked profile button");            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Log.d(TAG, "Clicked profile button");
+
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 clickOptionsButton();
             }, getRandomDelay()); // Random delay after clicking profile
         } else {
@@ -182,7 +299,9 @@ public class AccessibilityKeyDetector extends AccessibilityService {
 
         if (optionsButton != null && optionsButton.isClickable()) {
             optionsButton.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-            Log.d(TAG, "Clicked on 'Options' button");            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Log.d(TAG, "Clicked on 'Options' button");
+
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 clickElementByBounds(0, 784, 720, 875);
             }, getRandomDelay());
         } else {
@@ -200,7 +319,9 @@ public class AccessibilityKeyDetector extends AccessibilityService {
         AccessibilityNodeInfo targetNode = findClickableNodeByBounds(rootNode, left, top, right, bottom);
         if (targetNode != null && targetNode.isClickable()) {
             targetNode.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-            Log.d(TAG, "Clicked archive element");            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Log.d(TAG, "Clicked archive element");
+
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 clickArchivedPhotoByIndex(indexToClick);
             }, getRandomDelay());
         } else {
@@ -224,7 +345,9 @@ public class AccessibilityKeyDetector extends AccessibilityService {
             AccessibilityNodeInfo target = matchingPhotos.get(indexToClick);
             if (target != null && target.isClickable()) {
                 target.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                Log.d(TAG, "Clicked archived photo at index " + indexToClick);                // Wait longer and verify we're on the photo page before logging elements
+                Log.d(TAG, "Clicked archived photo at index " + indexToClick);
+
+                // Wait longer and verify we're on the photo page before logging elements
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     waitForPhotoPageAndLogElements(0);
                 }, getRandomDelay()); // Random initial wait
@@ -240,7 +363,9 @@ public class AccessibilityKeyDetector extends AccessibilityService {
     private void waitForPhotoPageAndLogElements(int attempt) {
         Log.d(TAG, "Checking if photo page is loaded (Attempt " + (attempt + 1) + ")");
 
-        AccessibilityNodeInfo rootNode = getRootInActiveWindow();        if (rootNode == null) {
+        AccessibilityNodeInfo rootNode = getRootInActiveWindow();
+
+        if (rootNode == null) {
             Log.e(TAG, "Root node is null - cannot check photo page");
             if (attempt < 5) {
                 new Handler(Looper.getMainLooper()).postDelayed(() ->
@@ -254,7 +379,8 @@ public class AccessibilityKeyDetector extends AccessibilityService {
 
         if (isPhotoPage) {
             Log.d(TAG, "Photo page detected! Looking for 'More actions for this post' button...");
-            clickMoreActionsButton();        } else {
+            clickMoreActionsButton();
+        } else {
             Log.d(TAG, "Still not on photo page, waiting...");
             if (attempt < 5) {
                 new Handler(Looper.getMainLooper()).postDelayed(() ->
@@ -279,7 +405,9 @@ public class AccessibilityKeyDetector extends AccessibilityService {
 
         if (moreActionsButton != null && moreActionsButton.isClickable()) {
             moreActionsButton.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-            Log.d(TAG, "Clicked 'More actions for this post' button");            // Wait longer for menu to fully load and then try to click "Show on Profile"
+            Log.d(TAG, "Clicked 'More actions for this post' button");
+
+            // Wait longer for menu to fully load and then try to click "Show on Profile"
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 tryClickShowOnProfileButton(0);
             }, getRandomDelay()); // Random wait time for menu to load
@@ -295,7 +423,9 @@ public class AccessibilityKeyDetector extends AccessibilityService {
     private void tryClickShowOnProfileButton(int attempt) {
         Log.d(TAG, "Trying to click 'Show on Profile' button (Attempt " + (attempt + 1) + ")");
 
-        AccessibilityNodeInfo rootNode = getRootInActiveWindow();        if (rootNode == null) {
+        AccessibilityNodeInfo rootNode = getRootInActiveWindow();
+
+        if (rootNode == null) {
             Log.e(TAG, "Root node is null - can't click Show on Profile button");
             if (attempt < 5) {
                 new Handler(Looper.getMainLooper()).postDelayed(() ->
@@ -321,7 +451,9 @@ public class AccessibilityKeyDetector extends AccessibilityService {
             boolean clickSuccess = performEnhancedClick(showOnProfileButton);
 
             if (clickSuccess) {
-                Log.d(TAG, "Successfully clicked 'Show on Profile' button");                // Wait and verify the action was successful
+                Log.d(TAG, "Successfully clicked 'Show on Profile' button");
+
+                // Wait and verify the action was successful
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     verifyShowOnProfileClick();
                 }, getRandomShortDelay());
@@ -329,20 +461,24 @@ public class AccessibilityKeyDetector extends AccessibilityService {
                 // wait random time and then close the insta app
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     closeInstagramApp();
-                }, getRandomDelay());            } else {
+                }, getRandomDelay());
+            } else {
                 Log.e(TAG, "Failed to click 'Show on Profile' button");
                 if (attempt < 3) {
                     new Handler(Looper.getMainLooper()).postDelayed(() ->
-                            tryClickShowOnProfileButton(attempt + 1), getRandomShortDelay());                } else {
+                            tryClickShowOnProfileButton(attempt + 1), getRandomShortDelay());
+                } else {
                     Log.e(TAG, "All attempts to click 'Show on Profile' failed");
                     // Hide overlay if all attempts failed
                     hideTouchBlockingOverlay();
                 }
             }
-        } else {            Log.e(TAG, "'Show on Profile' button not found (Attempt " + (attempt + 1) + ")");
+        } else {
+            Log.e(TAG, "'Show on Profile' button not found (Attempt " + (attempt + 1) + ")");
             if (attempt < 3) {
                 new Handler(Looper.getMainLooper()).postDelayed(() ->
-                        tryClickShowOnProfileButton(attempt + 1), getRandomShortDelay());            } else {
+                        tryClickShowOnProfileButton(attempt + 1), getRandomShortDelay());
+            } else {
                 Log.e(TAG, "Could not find 'Show on Profile' button after all attempts");
                 // Hide overlay if all attempts failed
                 hideTouchBlockingOverlay();
@@ -411,7 +547,6 @@ public class AccessibilityKeyDetector extends AccessibilityService {
             }
         }
 
-
         Log.e(TAG, "All enhanced click methods failed");
         return false;
     }
@@ -452,7 +587,9 @@ public class AccessibilityKeyDetector extends AccessibilityService {
             }
         }
         Log.d(TAG, "=== VERIFICATION END ===");
-    }    private void closeInstagramApp() {
+    }
+
+    private void closeInstagramApp() {
         Log.d(TAG, "Closing Instagram app...");
         
         // Hide the touch blocking overlay when automation is complete
